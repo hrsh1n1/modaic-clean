@@ -8,6 +8,12 @@ const { createSuccess, createPaginated } = require('../utils/apiResponse');
 
 const addItem = async (req, res, next) => {
   try {
+
+    console.log("REQ USER:", req.user);
+    console.log("REQ BODY:", req.body);
+    console.log("REQ FILE:", req.file);
+
+    
     let itemData = { ...req.body };
 
     // Parse JSON fields sent as strings in multipart form
