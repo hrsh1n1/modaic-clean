@@ -8,9 +8,11 @@ const logger = require('./logger');
 
 const connectDB = async () => {
   try {
-    const uri = process.env.NODE_ENV === 'production'
-      ? process.env.MONGODB_URI_PROD
-      : process.env.MONGODB_URI;
+    const uri =process.env.MONGODB_URI;
+
+    if (!uri) {
+      throw new Error("MONGODB_URI is not defined in environment variables");
+    }
 
     const conn = await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 5000,
