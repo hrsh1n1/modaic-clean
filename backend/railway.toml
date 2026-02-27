@@ -1,0 +1,10 @@
+# railway.toml — Backend deployment config for Railway
+[build]
+builder = "nixpacks"
+buildCommand = "npm install"
+
+[deploy]
+startCommand = "node src/app.js"
+restartPolicyType = "always"
+healthcheckPath = "/health"
+healthcheckTimeout = 10
