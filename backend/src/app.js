@@ -46,6 +46,11 @@ const globalLimiter = rateLimit({
 });
 app.use('/api', globalLimiter);
 
+
+app.get('/', (req, res) => {
+  res.send('Modaic API is running 🚀');
+});
+
 // ── General Middleware ────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
