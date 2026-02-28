@@ -13,7 +13,7 @@ const initGemini = () => {
   genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   
   // Force gemini-1.5-flash — free tier friendly
-  const modelName = 'gemini-1.5-flash';
+  const modelName = 'gemini-1.5-flash-latest';
   
   model = genAI.getGenerativeModel({
     model: modelName,
