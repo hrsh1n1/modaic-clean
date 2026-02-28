@@ -25,6 +25,9 @@ const userRoutes       = require('./routes/user.routes');
 
 const app = express();
 
+// Trust proxy — required for Render/Railway deployments
+app.set('trust proxy', 1);
+
 // ── Database ──────────────────────────────────────────────────
 connectDB();
 
@@ -45,11 +48,6 @@ const globalLimiter = rateLimit({
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 app.use('/api', globalLimiter);
-
-
-app.get('/', (req, res) => {
-  res.send('Modaic API is running 🚀');
-});
 
 // ── General Middleware ────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
