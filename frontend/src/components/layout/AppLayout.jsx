@@ -31,9 +31,13 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Refresh user stats every time the page/route changes
+  // Refresh user stats max once every 5 minutes — saves Gemini quota
   useEffect(() => {
-    refreshUser();
+    const lastRefresh = parseInt(sessionStorage.getItem("lastUserRefresh") || "0");
+    if (Date.now() - lastRefresh > 5 * 60 * 1000) {
+      refreshUser();
+      sessionStorage.setItem("lastUserRefresh", Date.now().toString());
+    }
   }, [location.pathname]);
 
   const currentTitle = PAGE_TITLES[location.pathname] || 'Modaic ✦';

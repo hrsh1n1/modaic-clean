@@ -1,17 +1,35 @@
 /**
  * modaic/backend/src/services/gemini.service.js
- * Fixed for @google/generative-ai@0.1.3 — no systemInstruction support
- * Works by injecting context directly into the first user message
+ * AI service using Groq — FREE, 14,400 req/day, ultra fast
+ * Model: llama-3.3-70b-versatile
  */
 
-const { getModel } = require('../config/gemini');
+const { getModel, getModelName } = require('../config/gemini');
 const logger = require('../config/logger');
 
-const LUNA_PERSONA = `You are Luna, a warm and fun AI fashion stylist for the app Modaic. 
+const LUNA_PERSONA = `You are Luna, a warm and fun AI fashion stylist for the app Modaic.
 Give personalized outfit advice in a friendly tone — like a best friend who is a professional stylist.
-Be concise (2-4 sentences). Use light emoji 🌸✨👗. 
-Focus on practical combinations. Consider occasion, season, and personal style.
-Never be judgmental. Always be uplifting.`;
+Be concise (2-4 sentences). Use light emoji 🌸✨👗.
+Focus on practical combinations. Consider occasion, season, weather, and personal style.
+Never be judgmental. Always be uplifting and constructive.
+When you know the user's wardrobe items, reference them specifically by name.`;
+
+/**
+ * Core Groq API call — single function used by all features
+ */
+const groqChat = async (messages) => {
+  const client = getModel();
+  if (!client) throw new Error('Groq client not initialized');
+
+  const result = await client.chat.completions.create({
+    model: getModelName(),
+    messages,
+    temperature: 0.8,
+    max_tokens: 1024,
+  });
+
+  return result.choices[0].message.content.trim();
+};
 
 const buildStyleContext = (styleProfile = {}, styleEmbedding = {}) => {
   const lines = [];
@@ -27,6 +45,13 @@ const buildStyleContext = (styleProfile = {}, styleEmbedding = {}) => {
       const top = entries.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k);
       if (top.length) lines.push(`Loves wearing: ${top.join(', ')}`);
     }
+    if (styleEmbedding?.colors) {
+      const entries = styleEmbedding.colors instanceof Map
+        ? [...styleEmbedding.colors.entries()]
+        : Object.entries(styleEmbedding.colors || {});
+      const top = entries.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => k);
+      if (top.length) lines.push(`Loves colors: ${top.join(', ')}`);
+    }
   } catch {}
 
   return lines.length ? `\nUser profile: ${lines.join(' | ')}` : '';
@@ -41,60 +66,53 @@ const buildMemoryContext = (outfitMemory = []) => {
 };
 
 /**
- * Simple generateContent call — works with all SDK versions
- * We build a single prompt with full context instead of using startChat
+ * Chat with Luna — multi-turn with wardrobe + style context
  */
 const chatWithStylist = async (conversationHistory, userMessage, wardrobeItems = [], user = {}) => {
-  const model = getModel();
-  if (!model) {
+  const client = getModel();
+  if (!client) {
     return "Hi! I'm Luna 🌸 I'm currently unavailable, please try again shortly!";
   }
 
   try {
     const wardrobeContext = wardrobeItems.length > 0
-      ? `\nWardrobe (${wardrobeItems.length} items): ${wardrobeItems.slice(0, 12).map(i => `${i.name} (${i.category})`).join(', ')}.`
-      : '\nWardrobe: empty.';
+      ? `\nWardrobe (${wardrobeItems.length} items): ${wardrobeItems.slice(0, 15).map(i => `${i.name} (${i.category})`).join(', ')}.`
+      : '\nWardrobe: empty — encourage user to add items.';
 
     const styleContext  = buildStyleContext(user.styleProfile, user.styleEmbedding);
     const memoryContext = buildMemoryContext(user.outfitMemory);
 
-    // Build conversation context from history
-    const historyContext = conversationHistory.slice(-6).map(m =>
-      `${m.role === 'user' ? 'User' : 'Luna'}: ${m.content}`
-    ).join('\n');
+    const systemPrompt = LUNA_PERSONA + wardrobeContext + styleContext + memoryContext;
 
-    // Single prompt with everything embedded — works with v0.1.3
-    const fullPrompt = `${LUNA_PERSONA}${wardrobeContext}${styleContext}${memoryContext}
+    // Build messages array for Groq (OpenAI format)
+    const messages = [
+      { role: 'system', content: systemPrompt },
+    ];
 
-${historyContext ? `Previous conversation:\n${historyContext}\n` : ''}
-User: ${userMessage}
-Luna:`;
-
-    const result = await model.generateContent(fullPrompt);
-    const text = result.response.text();
-    return text.trim();
-  } catch (err) {
-    logger.error(`Gemini chat error: ${err.message}`);
-    // Try absolute minimal fallback
-    try {
-      const fallback = getModel();
-      const result = await fallback.generateContent(
-        `You are Luna, an AI fashion stylist. Answer this question helpfully: ${userMessage}`
-      );
-      return result.response.text().trim();
-    } catch (e2) {
-      logger.error(`Gemini fallback error: ${e2.message}`);
-      return "I'm having a moment! ✨ Please try again in a few seconds.";
+    // Add conversation history
+    for (const msg of conversationHistory.slice(-8)) {
+      messages.push({
+        role: msg.role === 'assistant' ? 'assistant' : 'user',
+        content: msg.content,
+      });
     }
+
+    // Add current message
+    messages.push({ role: 'user', content: userMessage });
+
+    return await groqChat(messages);
+  } catch (err) {
+    logger.error(`Groq chat error: ${err.message}`);
+    return "I'm having a moment! ✨ Please try again in a few seconds.";
   }
 };
 
 /**
- * Generate outfit suggestions
+ * Generate outfit suggestions with full context
  */
 const generateOutfitSuggestions = async (items, context = {}, styleProfile = {}, styleEmbedding = {}, outfitMemory = []) => {
-  const model = getModel();
-  if (!model) return getMockOutfitSuggestion(context);
+  const client = getModel();
+  if (!client) return getMockOutfitSuggestion(context);
 
   try {
     const itemList = items.map(i =>
@@ -105,50 +123,57 @@ const generateOutfitSuggestions = async (items, context = {}, styleProfile = {},
     const memoryContext = buildMemoryContext(outfitMemory);
     const weatherNote   = context.weather ? `Current weather: ${context.weather}` : '';
 
-    const prompt = `${LUNA_PERSONA}${styleContext}${memoryContext}
-
-Wardrobe items:
-${itemList}
+    const messages = [
+      {
+        role: 'system',
+        content: LUNA_PERSONA + styleContext + memoryContext,
+      },
+      {
+        role: 'user',
+        content: `My wardrobe:\n${itemList}
 
 Occasion: ${context.occasion || 'casual'}
 ${weatherNote || `Season: ${context.season || 'any'}`}
 Mood: ${context.mood || 'feeling good'}
 
-Suggest 3 outfit combinations from the listed items.
-Return ONLY a JSON array, no markdown or explanation:
-[{"name":"Outfit Name","items":["item name"],"tip":"styling tip","accessory":"suggestion","whyItWorks":"why this suits this user"}]`;
+Suggest 3 outfit combinations using ONLY my listed items.
+Return ONLY a valid JSON array, no markdown or extra text:
+[{"name":"Outfit Name","items":["exact item name"],"tip":"styling tip","accessory":"accessory suggestion","whyItWorks":"why this suits me specifically"}]`,
+      },
+    ];
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const text = await groqChat(messages);
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) return JSON.parse(jsonMatch[0]);
     return getMockOutfitSuggestion(context);
   } catch (err) {
-    logger.error(`Gemini outfit error: ${err.message}`);
+    logger.error(`Groq outfit error: ${err.message}`);
     return getMockOutfitSuggestion(context);
   }
 };
 
 /**
- * Style insights
+ * Generate style insights
  */
 const generateStyleInsights = async (stats, styleProfile, styleEmbedding = {}) => {
-  const model = getModel();
-  if (!model) return 'Keep experimenting with your wardrobe! 🌸';
+  const client = getModel();
+  if (!client) return 'Keep experimenting with your wardrobe! 🌸';
 
   try {
     const styleContext = buildStyleContext(styleProfile, styleEmbedding);
 
-    const prompt = `${LUNA_PERSONA}${styleContext}
+    const messages = [
+      { role: 'system', content: LUNA_PERSONA + styleContext },
+      {
+        role: 'user',
+        content: `My wardrobe stats: ${stats.totalItems} items, sustainability score ${stats.sustainabilityScore}%, avg ${stats.avgWears} wears/item, most worn category: ${stats.topCategory || 'tops'}.
+Give me 2 specific actionable wardrobe tips. Keep it to 3-4 sentences. Be encouraging and personal.`,
+      },
+    ];
 
-Wardrobe: ${stats.totalItems} items, sustainability score ${stats.sustainabilityScore}%, avg ${stats.avgWears} wears/item, most worn: ${stats.topCategory || 'tops'}.
-
-Give 2 specific actionable wardrobe tips for this user. 3-4 sentences. Be encouraging and personal.`;
-
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
+    return await groqChat(messages);
   } catch (err) {
-    logger.error(`Gemini insights error: ${err.message}`);
+    logger.error(`Groq insights error: ${err.message}`);
     return "You're doing amazing! Keep mixing and matching 🌸";
   }
 };
@@ -157,23 +182,29 @@ Give 2 specific actionable wardrobe tips for this user. 3-4 sentences. Be encour
  * Analyze clothing item
  */
 const analyzeClothingItem = async (itemName, category) => {
-  const model = getModel();
-  if (!model) return getMockItemAnalysis();
+  const client = getModel();
+  if (!client) return getMockItemAnalysis();
 
   try {
-    const prompt = `Fashion AI: analyze "${itemName}" (${category}). Return ONLY JSON, no markdown:
-{"subcategory":"type","occasions":["casual","work"],"seasons":["spring"],"aiTags":["tag1","tag2"],"aiNotes":"styling tip"}`;
+    const messages = [
+      { role: 'system', content: 'You are a fashion AI that analyzes clothing items. Always respond with valid JSON only, no markdown.' },
+      {
+        role: 'user',
+        content: `Analyze "${itemName}" (category: ${category}). Return ONLY valid JSON:
+{"subcategory":"type","occasions":["casual","work"],"seasons":["spring","summer"],"aiTags":["tag1","tag2","tag3"],"aiNotes":"one sentence styling tip"}`,
+      },
+    ];
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const text = await groqChat(messages);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     return jsonMatch ? JSON.parse(jsonMatch[0]) : getMockItemAnalysis();
   } catch (err) {
-    logger.error(`Gemini analyze error: ${err.message}`);
+    logger.error(`Groq analyze error: ${err.message}`);
     return getMockItemAnalysis();
   }
 };
 
+// Fallbacks
 const getMockOutfitSuggestion = (context) => ([{
   name: `${context.occasion || 'Casual'} Chic`,
   items: ['Your favourite top', 'Versatile bottoms'],
@@ -183,9 +214,16 @@ const getMockOutfitSuggestion = (context) => ([{
 }]);
 
 const getMockItemAnalysis = () => ({
-  subcategory: 'blouse', occasions: ['casual', 'work'],
-  seasons: ['spring', 'summer'], aiTags: ['feminine', 'versatile'],
+  subcategory: 'blouse',
+  occasions: ['casual', 'work'],
+  seasons: ['spring', 'summer'],
+  aiTags: ['feminine', 'versatile', 'classic'],
   aiNotes: 'Pairs beautifully with high-waisted bottoms',
 });
 
-module.exports = { chatWithStylist, generateOutfitSuggestions, generateStyleInsights, analyzeClothingItem };
+module.exports = {
+  chatWithStylist,
+  generateOutfitSuggestions,
+  generateStyleInsights,
+  analyzeClothingItem,
+};

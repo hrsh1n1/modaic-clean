@@ -1,36 +1,36 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+/**
+ * modaic/backend/src/config/gemini.js
+ * Groq AI configuration — FREE tier, 14,400 req/day, no credit card
+ * Get free key at: https://console.groq.com
+ */
+
+const Groq = require('groq-sdk');
 const logger = require('./logger');
 
-let genAI;
-let model;
+let client = null;
+
+const MODEL = 'llama-3.3-70b-versatile'; // Fast, smart, free
 
 const initGemini = () => {
-  if (!process.env.GEMINI_API_KEY) {
-    logger.warn('GEMINI_API_KEY not set — AI features disabled');
+  if (!process.env.GROQ_API_KEY) {
+    logger.warn('GROQ_API_KEY not set — AI features disabled');
     return null;
   }
-
-  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  
-  // Force gemini-1.5-flash — free tier friendly
-  const modelName = 'gemini-2.0-flash';
-  
-  model = genAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      temperature: 0.8,
-      topP: 0.9,
-      maxOutputTokens: 1024,
-    },
-  });
-
-  logger.info(`✦ Gemini AI initialized with model: ${modelName}`);
-  return model;
+  try {
+    client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    logger.info(`✦ Groq AI initialized (${MODEL})`);
+    return client;
+  } catch (err) {
+    logger.error(`Groq init error: ${err.message}`);
+    return null;
+  }
 };
 
 const getModel = () => {
-  if (!model) return initGemini();
-  return model;
+  if (!client) return initGemini();
+  return client;
 };
 
-module.exports = { initGemini, getModel };
+const getModelName = () => MODEL;
+
+module.exports = { initGemini, getModel, getModelName };
