@@ -1,29 +1,25 @@
 /**
  * modaic/backend/src/services/insights.service.js
- * Wardrobe analytics and sustainability scoring
  */
 
 const WardrobeItem = require('../models/WardrobeItem.model');
 const Outfit = require('../models/Outfit.model');
 const { generateStyleInsights } = require('./gemini.service');
 
-const getWardrobeInsights = async (userId, styleProfile = {}) => {
+const getWardrobeInsights = async (userId, styleProfile = {}, styleEmbedding = {}) => {
   const [items, outfits] = await Promise.all([
     WardrobeItem.find({ userId, isActive: true }),
     Outfit.countDocuments({ userId }),
   ]);
 
-  // ── Category breakdown ────────────────────────────────────
   const categoryMap = {};
   items.forEach(item => {
     categoryMap[item.category] = (categoryMap[item.category] || 0) + 1;
   });
 
-  // ── Wear frequency analysis ───────────────────────────────
   const totalWears = items.reduce((sum, i) => sum + i.wearCount, 0);
   const avgWears   = items.length > 0 ? (totalWears / items.length).toFixed(1) : 0;
 
-  // ── Unloved items (worn < 3 times or never) ───────────────
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const unlovedItems  = items
     .filter(i => !i.lastWornAt || i.lastWornAt < thirtyDaysAgo)
@@ -31,21 +27,17 @@ const getWardrobeInsights = async (userId, styleProfile = {}) => {
     .slice(0, 5)
     .map(i => ({ _id: i._id, name: i.name, category: i.category, imageUrl: i.imageUrl, wearCount: i.wearCount, lastWornAt: i.lastWornAt }));
 
-  // ── Sustainability score (0-100) ──────────────────────────
-  // Based on: average wear count, variety of occasions, wardrobe reuse rate
   const wornItems = items.filter(i => i.wearCount > 0).length;
   const reuseRate = items.length > 0 ? wornItems / items.length : 0;
   const sustainabilityScore = Math.min(100, Math.round(
     (reuseRate * 60) + (Math.min(avgWears / 10, 1) * 40)
   ));
 
-  // ── Cost per wear ─────────────────────────────────────────
   const itemsWithPrice = items.filter(i => i.purchasePrice && i.wearCount > 0);
   const avgCostPerWear = itemsWithPrice.length > 0
     ? Math.round(itemsWithPrice.reduce((sum, i) => sum + (i.purchasePrice / i.wearCount), 0) / itemsWithPrice.length)
     : null;
 
-  // ── Top category ─────────────────────────────────────────
   const topCategory = Object.entries(categoryMap).sort((a, b) => b[1] - a[1])[0]?.[0];
 
   const stats = {
@@ -59,8 +51,8 @@ const getWardrobeInsights = async (userId, styleProfile = {}) => {
     reuseRate: Math.round(reuseRate * 100),
   };
 
-  // ── AI insights (non-blocking) ────────────────────────────
-  const aiInsights = await generateStyleInsights(stats, styleProfile).catch(() => null);
+  // Pass style embedding for personalised AI insights
+  const aiInsights = await generateStyleInsights(stats, styleProfile, styleEmbedding).catch(() => null);
 
   return { stats, unlovedItems, aiInsights };
 };

@@ -7,7 +7,12 @@ const { createSuccess } = require('../utils/apiResponse');
 
 const getInsights = async (req, res, next) => {
   try {
-    const insights = await getWardrobeInsights(req.user._id, req.user.styleProfile);
+    // Pass style embedding for personalised AI tips
+    const insights = await getWardrobeInsights(
+      req.user._id,
+      req.user.styleProfile,
+      req.user.styleEmbedding,
+    );
     res.status(200).json(createSuccess(insights));
   } catch (err) {
     next(err);
