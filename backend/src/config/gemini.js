@@ -1,10 +1,3 @@
-/**
- * modaic/backend/src/config/gemini.js
- * Google Gemini AI configuration
- * Get FREE API key at: https://aistudio.google.com/app/apikey
- * Free tier: 15 RPM, 1M tokens/day — plenty for dev + small production
- */
-
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const logger = require('./logger');
 
@@ -18,8 +11,12 @@ const initGemini = () => {
   }
 
   genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  
+  // Force gemini-1.5-flash — free tier friendly
+  const modelName = 'gemini-1.5-flash';
+  
   model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+    model: modelName,
     generationConfig: {
       temperature: 0.8,
       topP: 0.9,
@@ -27,7 +24,7 @@ const initGemini = () => {
     },
   });
 
-  logger.info('✦ Gemini AI initialized');
+  logger.info(`✦ Gemini AI initialized with model: ${modelName}`);
   return model;
 };
 
