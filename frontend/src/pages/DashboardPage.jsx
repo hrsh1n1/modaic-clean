@@ -16,21 +16,24 @@ const QUICK_ACTIONS = [
 ];
 
 export default function DashboardPage() {
-  const { user } = useAuthStore();
+  const { user, refreshUser } = useAuthStore();
   const navigate = useNavigate();
   const [recentItems, setRecentItems] = useState([]);
-  const [stats, setStats] = useState(null);
+  const [liveStats, setLiveStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
+        // Refresh user from server so sidebar + stats are always fresh
+        await refreshUser();
+
         const [itemsRes, insRes] = await Promise.allSettled([
           wardrobeAPI.getItems({ limit: 6 }),
           insightsAPI.getInsights(),
         ]);
         if (itemsRes.status === 'fulfilled') setRecentItems(itemsRes.value.data.data);
-        if (insRes.status === 'fulfilled') setStats(insRes.value.data.data.stats);
+        if (insRes.status === 'fulfilled') setLiveStats(insRes.value.data.data.stats);
       } finally {
         setLoading(false);
       }
@@ -38,11 +41,12 @@ export default function DashboardPage() {
     load();
   }, []);
 
+  // Use live stats from insights API — always accurate
   const statCards = [
-    { label: 'WARDROBE ITEMS', val: user?.stats?.totalItems || 0, icon: '👗', color: 'var(--pink-100)', border: 'var(--pink-300)' },
-    { label: 'OUTFITS CREATED', val: user?.stats?.outfitsCreated || 0, icon: '✨', color: 'var(--lavender)', border: 'var(--lavender-dark)' },
-    { label: 'AI CHATS', val: user?.stats?.aiChats || 0, icon: '🤖', color: 'var(--mint)', border: '#34d399' },
-    { label: 'ECO SCORE', val: stats ? `${stats.sustainabilityScore}%` : '—', icon: '🌱', color: 'var(--yellow)', border: '#fbbf24' },
+    { label: 'WARDROBE ITEMS', val: liveStats?.totalItems ?? user?.stats?.totalItems ?? 0, icon: '👗', color: 'var(--pink-100)', border: 'var(--pink-300)' },
+    { label: 'OUTFITS CREATED', val: liveStats?.outfitsCreated ?? user?.stats?.outfitsCreated ?? 0, icon: '✨', color: 'var(--lavender)', border: 'var(--lavender-dark)' },
+    { label: 'AI CHATS', val: user?.stats?.aiChats ?? 0, icon: '🤖', color: 'var(--mint)', border: '#34d399' },
+    { label: 'ECO SCORE', val: liveStats ? `${liveStats.sustainabilityScore}%` : '—', icon: '🌱', color: 'var(--yellow)', border: '#fbbf24' },
   ];
 
   return (

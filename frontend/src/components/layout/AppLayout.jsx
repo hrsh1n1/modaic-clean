@@ -3,7 +3,7 @@
  * Main layout shell — sidebar + top bar + page content
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../../context/authStore';
 import { PixelHanger, PixelHeart, PixelSparkle } from '../common/PixelIcons';
@@ -26,10 +26,15 @@ const PAGE_TITLES = {
 };
 
 export default function AppLayout() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, refreshUser } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Refresh user stats every time the page/route changes
+  useEffect(() => {
+    refreshUser();
+  }, [location.pathname]);
 
   const currentTitle = PAGE_TITLES[location.pathname] || 'Modaic ✦';
 

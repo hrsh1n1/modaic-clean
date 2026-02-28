@@ -59,6 +59,19 @@ const useAuthStore = create((set, get) => ({
     localStorage.setItem('modaic_user', JSON.stringify(updated));
     set({ user: updated });
   },
+
+  // Fetch fresh user data from server — fixes stale stats in sidebar + dashboard
+  refreshUser: async () => {
+    try {
+      const res = await authAPI.me();
+      const user = res.data.data;
+      localStorage.setItem('modaic_user', JSON.stringify(user));
+      set({ user });
+    } catch {
+      // silently fail — not critical
+    }
+  },
+
 }));
 
 export default useAuthStore;
