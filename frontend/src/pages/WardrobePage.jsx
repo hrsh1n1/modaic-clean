@@ -1,6 +1,6 @@
 /**
  * modaic/frontend/src/pages/WardrobePage.jsx
- * Full wardrobe management — grid view, filters, add item modal
+ * Full wardrobe management with AI Vision auto-fill
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -9,21 +9,55 @@ import toast from 'react-hot-toast';
 import { wardrobeAPI } from '../services/api';
 
 const CATEGORIES = ['all', 'tops', 'bottoms', 'dresses', 'outerwear', 'shoes', 'accessories', 'activewear'];
-
 const CATEGORY_ICONS = {
-  tops: '👕', bottoms: '👖', dresses: '👗', outerwear: '🧥', shoes: '👟', accessories: '💍', activewear: '🩱', all: '✦',
+  tops: '👕', bottoms: '👖', dresses: '👗', outerwear: '🧥',
+  shoes: '👟', accessories: '💍', activewear: '🩱', all: '✦',
 };
 
 function AddItemModal({ onClose, onAdded }) {
-  const [form, setForm] = useState({ name: '', category: 'tops', brand: '', purchasePrice: '' });
+  const [form, setForm] = useState({
+    name: '', category: 'tops', brand: '', purchasePrice: '',
+  });
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [uploadedUrl, setUploadedUrl] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
 
-  const onDrop = useCallback((accepted) => {
-    if (accepted[0]) {
-      setFile(accepted[0]);
-      setPreview(URL.createObjectURL(accepted[0]));
+  const onDrop = useCallback(async (accepted) => {
+    if (!accepted[0]) return;
+    const f = accepted[0];
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setAiAnalysis(null);
+
+    // Auto-trigger AI analysis as soon as photo is dropped
+    setAnalyzing(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', f);
+      const res = await wardrobeAPI.analyzeImage(formData);
+      const { analysis, imageUrl } = res.data.data;
+
+      setUploadedUrl(imageUrl);
+
+      if (analysis) {
+        setAiAnalysis(analysis);
+        // Pre-fill form with AI results
+        setForm(prev => ({
+          ...prev,
+          name:     analysis.name     || prev.name,
+          category: analysis.category || prev.category,
+        }));
+        toast.success('✨ Luna analyzed your item!', { duration: 2000 });
+      } else {
+        toast('Fill in the details manually 📝', { icon: '📋' });
+      }
+    } catch {
+      toast('AI analysis skipped — fill in manually', { icon: '📋' });
+    } finally {
+      setAnalyzing(false);
     }
   }, []);
 
@@ -33,14 +67,33 @@ function AddItemModal({ onClose, onAdded }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file) { toast.error('Please upload an image! 📸'); return; }
+    if (!file && !uploadedUrl) { toast.error('Please upload an image! 📸'); return; }
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append('image', file);
+
+      if (uploadedUrl) {
+        // Image already uploaded during analysis — pass URL + skipAI flag
+        formData.append('imageUrl', uploadedUrl);
+        formData.append('skipAI', 'true');
+      } else {
+        formData.append('image', file);
+      }
+
       Object.entries(form).forEach(([k, v]) => { if (v) formData.append(k, v); });
+
+      // Pass AI analysis data
+      if (aiAnalysis) {
+        if (aiAnalysis.colors?.length)    formData.append('colors',    JSON.stringify(aiAnalysis.colors));
+        if (aiAnalysis.occasions?.length) formData.append('occasions', JSON.stringify(aiAnalysis.occasions));
+        if (aiAnalysis.seasons?.length)   formData.append('seasons',   JSON.stringify(aiAnalysis.seasons));
+        if (aiAnalysis.aiTags?.length)    formData.append('aiTags',    JSON.stringify(aiAnalysis.aiTags));
+        if (aiAnalysis.aiNotes)           formData.append('aiNotes',   aiAnalysis.aiNotes);
+        if (aiAnalysis.pattern)           formData.append('pattern',   aiAnalysis.pattern);
+      }
+
       await wardrobeAPI.addItem(formData);
-      toast.success('Item added to your wardrobe! 👗');
+      toast.success('Item added! 👗');
       onAdded();
       onClose();
     } catch {
@@ -50,56 +103,72 @@ function AddItemModal({ onClose, onAdded }) {
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box">
+      <div className="modal-box" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div style={{ fontFamily: 'var(--font-pixel)', fontSize: 10, color: 'var(--pink-600)' }}>ADD NEW ITEM</div>
-          <button onClick={onClose} style={{ fontFamily: 'var(--font-pixel)', fontSize: 14, color: 'var(--gray-400)', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ fontFamily: 'var(--font-pixel)', fontSize: 14, color: 'var(--gray-400)', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* Image upload */}
+          {/* Dropzone */}
           <div {...getRootProps()} style={{
-            border: `3px dashed ${isDragActive ? 'var(--pink-500)' : 'var(--pink-200)'}`,
-            background: isDragActive ? 'var(--pink-50)' : 'white',
+            border: `3px dashed ${isDragActive ? 'var(--pink-500)' : analyzing ? '#a78bfa' : 'var(--pink-200)'}`,
+            background: isDragActive ? 'var(--pink-50)' : analyzing ? '#f5f3ff' : 'white',
             padding: preview ? 0 : 32, textAlign: 'center', cursor: 'pointer',
-            marginBottom: 16, transition: 'all 0.15s', position: 'relative', overflow: 'hidden',
+            marginBottom: 12, position: 'relative', overflow: 'hidden', transition: 'all 0.15s',
           }}>
             <input {...getInputProps()} />
             {preview ? (
               <>
                 <img src={preview} alt="preview" style={{ width: '100%', maxHeight: 200, objectFit: 'contain' }} />
                 <div style={{ position: 'absolute', bottom: 8, right: 8 }}>
-                  <span className="badge pink">✓ IMAGE READY</span>
+                  {analyzing
+                    ? <span className="badge lavender">🔍 LUNA IS ANALYZING...</span>
+                    : aiAnalysis
+                      ? <span className="badge pink">✨ AI DETECTED</span>
+                      : <span className="badge pink">✓ IMAGE READY</span>
+                  }
                 </div>
               </>
             ) : (
               <>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>📸</div>
-                <div style={{ fontFamily: 'var(--font-pixel)', fontSize: 8, color: 'var(--pink-400)', marginBottom: 4 }}>
-                  DROP PHOTO HERE
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-400)' }}>or click to browse</div>
+                <div style={{ fontFamily: 'var(--font-pixel)', fontSize: 8, color: 'var(--pink-400)', marginBottom: 4 }}>DROP PHOTO HERE</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-400)' }}>Luna will auto-detect everything ✨</div>
               </>
             )}
           </div>
 
-          {/* Form fields */}
-          {[
-            { key: 'name', label: 'ITEM NAME', type: 'text', placeholder: 'Floral Silk Blouse', required: true },
-            { key: 'brand', label: 'BRAND', type: 'text', placeholder: 'H&M, Zara, etc.' },
-            { key: 'purchasePrice', label: 'PURCHASE PRICE (₹)', type: 'number', placeholder: '1500' },
-          ].map(f => (
-            <div key={f.key} style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontFamily: 'var(--font-pixel)', fontSize: 7, color: 'var(--pink-600)', marginBottom: 6 }}>{f.label}</label>
-              <input
-                type={f.type} className="pixel-input" placeholder={f.placeholder}
-                value={form[f.key]} required={f.required}
-                onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-              />
+          {/* AI Analysis Preview */}
+          {aiAnalysis && (
+            <div style={{ background: 'linear-gradient(135deg, #fdf2f8, #f5f3ff)', border: '2px solid var(--pink-200)', padding: 12, marginBottom: 16 }}>
+              <div style={{ fontFamily: 'var(--font-pixel)', fontSize: 7, color: 'var(--pink-500)', marginBottom: 8 }}>✨ LUNA DETECTED</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {aiAnalysis.colors?.map(c => <span key={c} className="badge pink">{c}</span>)}
+                {aiAnalysis.occasions?.map(o => <span key={o} className="badge lavender">{o}</span>)}
+                {aiAnalysis.aiTags?.map(t => <span key={t} className="badge" style={{ background: '#d1fae5', color: '#065f46', border: '2px solid #6ee7b7' }}>{t}</span>)}
+              </div>
+              {aiAnalysis.aiNotes && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', marginTop: 8, fontStyle: 'italic' }}>
+                  💡 {aiAnalysis.aiNotes}
+                </div>
+              )}
             </div>
-          ))}
+          )}
 
-          <div style={{ marginBottom: 20 }}>
+          {/* Form fields */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontFamily: 'var(--font-pixel)', fontSize: 7, color: 'var(--pink-600)', marginBottom: 6 }}>
+              ITEM NAME {analyzing && <span style={{ color: '#a78bfa' }}>⟳ detecting...</span>}
+            </label>
+            <input
+              type="text" className="pixel-input" placeholder="Floral Silk Blouse"
+              value={form.name} required
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+            />
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontFamily: 'var(--font-pixel)', fontSize: 7, color: 'var(--pink-600)', marginBottom: 6 }}>CATEGORY</label>
             <select className="pixel-input" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
               {CATEGORIES.filter(c => c !== 'all').map(c => (
@@ -108,12 +177,24 @@ function AddItemModal({ onClose, onAdded }) {
             </select>
           </div>
 
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontFamily: 'var(--font-pixel)', fontSize: 7, color: 'var(--pink-600)', marginBottom: 6 }}>BRAND</label>
+            <input type="text" className="pixel-input" placeholder="H&M, Zara, etc."
+              value={form.brand} onChange={e => setForm(p => ({ ...p, brand: e.target.value }))} />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', fontFamily: 'var(--font-pixel)', fontSize: 7, color: 'var(--pink-600)', marginBottom: 6 }}>PURCHASE PRICE (₹)</label>
+            <input type="number" className="pixel-input" placeholder="1500"
+              value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} />
+          </div>
+
           <div style={{ display: 'flex', gap: 10 }}>
             <button type="button" className="btn-pixel secondary" onClick={onClose} style={{ flex: 1, fontSize: 8, justifyContent: 'center' }}>
               CANCEL
             </button>
-            <button type="submit" className="btn-pixel" style={{ flex: 2, fontSize: 8, justifyContent: 'center' }} disabled={loading}>
-              {loading ? 'SAVING...' : '✦ ADD TO WARDROBE'}
+            <button type="submit" className="btn-pixel" style={{ flex: 2, fontSize: 8, justifyContent: 'center' }} disabled={loading || analyzing}>
+              {loading ? 'SAVING...' : analyzing ? '✨ ANALYZING...' : '✦ ADD TO WARDROBE'}
             </button>
           </div>
         </form>
@@ -162,47 +243,34 @@ export default function WardrobePage() {
 
   return (
     <div className="animate-in">
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-400)' }}>{total} items total</div>
-        </div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-400)' }}>{total} items total</div>
         <button className="btn-pixel" onClick={() => setShowModal(true)} style={{ fontSize: 8 }}>
           + ADD ITEM
         </button>
       </div>
 
-      {/* Search */}
       <div style={{ marginBottom: 16 }}>
-        <input
-          type="text" className="pixel-input" placeholder="🔍 Search your wardrobe..."
-          value={search} onChange={e => setSearch(e.target.value)}
-          style={{ maxWidth: 340 }}
-        />
+        <input type="text" className="pixel-input" placeholder="🔍 Search your wardrobe..."
+          value={search} onChange={e => setSearch(e.target.value)} style={{ maxWidth: 340 }} />
       </div>
 
-      {/* Category filters */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
         {CATEGORIES.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setCategory(cat)}
-            style={{
-              fontFamily: 'var(--font-pixel)', fontSize: 7, padding: '7px 12px',
-              border: '3px solid',
-              borderColor: category === cat ? 'var(--pink-500)' : 'var(--pink-200)',
-              background: category === cat ? 'var(--pink-500)' : 'white',
-              color: category === cat ? 'white' : 'var(--pink-500)',
-              boxShadow: category === cat ? 'var(--pixel-shadow)' : 'none',
-              cursor: 'pointer', transition: 'all 0.1s',
-            }}
-          >
+          <button key={cat} onClick={() => setCategory(cat)} style={{
+            fontFamily: 'var(--font-pixel)', fontSize: 7, padding: '7px 12px',
+            border: '3px solid',
+            borderColor: category === cat ? 'var(--pink-500)' : 'var(--pink-200)',
+            background: category === cat ? 'var(--pink-500)' : 'white',
+            color: category === cat ? 'white' : 'var(--pink-500)',
+            boxShadow: category === cat ? 'var(--pixel-shadow)' : 'none',
+            cursor: 'pointer',
+          }}>
             {CATEGORY_ICONS[cat]} {cat.toUpperCase()}
           </button>
         ))}
       </div>
 
-      {/* Items grid */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60 }}>
           <div className="pixel-spinner" style={{ margin: '0 auto 12px' }}/>
@@ -215,7 +283,7 @@ export default function WardrobePage() {
             {search || category !== 'all' ? 'NO ITEMS FOUND' : 'YOUR CLOSET IS EMPTY'}
           </div>
           <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-400)', marginBottom: 16 }}>
-            {search ? `Try a different search term` : 'Start adding items to build your digital wardrobe!'}
+            {search ? 'Try a different search term' : 'Drop a photo and Luna will auto-detect everything ✨'}
           </p>
           {!search && <button className="btn-pixel" onClick={() => setShowModal(true)} style={{ fontSize: 8 }}>+ ADD FIRST ITEM</button>}
         </div>
@@ -224,14 +292,15 @@ export default function WardrobePage() {
           {items.map(item => (
             <div key={item._id} className="clothing-card">
               <div style={{ position: 'relative' }}>
-                <img
-                  src={item.imageUrl} alt={item.name}
+                <img src={item.imageUrl} alt={item.name}
                   style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
                   onError={e => { e.target.src = ''; e.target.style.display = 'none'; }}
                 />
-                {item.isFavorite && (
-                  <div style={{ position: 'absolute', top: 6, right: 6, background: 'var(--pink-500)', border: '2px solid white', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    ♥
+                {item.aiTags?.length > 0 && (
+                  <div style={{ position: 'absolute', top: 6, left: 6 }}>
+                    <span style={{ background: 'rgba(167,139,250,0.9)', color: 'white', fontFamily: 'var(--font-pixel)', fontSize: 5, padding: '3px 5px', border: '1px solid white' }}>
+                      ✨ AI
+                    </span>
                   </div>
                 )}
               </div>
@@ -244,16 +313,12 @@ export default function WardrobePage() {
                   <span style={{ fontFamily: 'var(--font-pixel)', fontSize: 7, color: 'var(--pink-400)' }}>×{item.wearCount}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 4 }}>
-                  <button
-                    className="btn-pixel secondary" style={{ flex: 1, fontSize: 6, padding: '5px 6px', justifyContent: 'center' }}
-                    onClick={e => handleWear(item._id, e)}
-                  >
+                  <button className="btn-pixel secondary" style={{ flex: 1, fontSize: 6, padding: '5px 6px', justifyContent: 'center' }}
+                    onClick={e => handleWear(item._id, e)}>
                     WORE IT
                   </button>
-                  <button
-                    style={{ padding: '5px 8px', border: '2px solid var(--pink-200)', background: 'white', color: 'var(--gray-400)', fontSize: 11, cursor: 'pointer' }}
-                    onClick={() => handleDelete(item._id)}
-                  >
+                  <button style={{ padding: '5px 8px', border: '2px solid var(--pink-200)', background: 'white', color: 'var(--gray-400)', fontSize: 11, cursor: 'pointer' }}
+                    onClick={() => handleDelete(item._id)}>
                     🗑
                   </button>
                 </div>

@@ -44,11 +44,17 @@ export const authAPI = {
 };
 
 export const wardrobeAPI = {
-  getItems:   (params) => api.get('/wardrobe', { params }),
-  addItem:    (data)   => api.post('/wardrobe', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  updateItem: (id, d)  => api.put(`/wardrobe/${id}`, d),
-  deleteItem: (id)     => api.delete(`/wardrobe/${id}`),
-  recordWear: (id)     => api.post(`/wardrobe/${id}/wear`),
+  getItems:     (params) => api.get('/wardrobe', { params }),
+  addItem:      (data)   => api.post('/wardrobe', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  analyzeImage: (data)   => api.post('/wardrobe/analyze-image', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  updateItem:   (id, d)  => api.put(`/wardrobe/${id}`, d),
+  deleteItem:   (id)     => api.delete(`/wardrobe/${id}`),
+  recordWear:   (id)     => api.post(`/wardrobe/${id}/wear`),
+};
+
+export const trendsAPI = {
+  getTrend:    () => api.get('/trends'),
+  refreshTrend:() => api.post('/trends/refresh'),
 };
 
 export const outfitAPI = {

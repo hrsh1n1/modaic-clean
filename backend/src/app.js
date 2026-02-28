@@ -1,7 +1,6 @@
 /**
  * modaic/backend/src/app.js
- * Main Express application entry point
- * Bootstraps middleware, routes, and database connection
+ * Main Express application — with trends route + cron jobs
  */
 
 const express = require('express');
@@ -14,14 +13,16 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 const logger = require('./config/logger');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const { initCronJobs } = require('./services/cron.service');
 
 // ── Route imports ─────────────────────────────────────────────
-const authRoutes       = require('./routes/auth.routes');
-const wardrobeRoutes   = require('./routes/wardrobe.routes');
-const outfitRoutes     = require('./routes/outfit.routes');
-const stylistRoutes    = require('./routes/stylist.routes');
-const insightsRoutes   = require('./routes/insights.routes');
-const userRoutes       = require('./routes/user.routes');
+const authRoutes     = require('./routes/auth.routes');
+const wardrobeRoutes = require('./routes/wardrobe.routes');
+const outfitRoutes   = require('./routes/outfit.routes');
+const stylistRoutes  = require('./routes/stylist.routes');
+const insightsRoutes = require('./routes/insights.routes');
+const userRoutes     = require('./routes/user.routes');
+const trendsRoutes   = require('./routes/trends.routes');
 
 const app = express();
 
@@ -30,6 +31,11 @@ app.set('trust proxy', 1);
 
 // ── Database ──────────────────────────────────────────────────
 connectDB();
+
+// ── Cron Jobs ─────────────────────────────────────────────────
+if (process.env.NODE_ENV !== 'test') {
+  initCronJobs();
+}
 
 // ── Security Middleware ───────────────────────────────────────
 app.use(helmet());
@@ -41,7 +47,7 @@ app.use(cors({
 
 // ── Global Rate Limiter ───────────────────────────────────────
 const globalLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000, // 15 min
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000,
   max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
   standardHeaders: true,
   legacyHeaders: false,
@@ -71,6 +77,7 @@ app.use('/api/v1/outfits',  outfitRoutes);
 app.use('/api/v1/stylist',  stylistRoutes);
 app.use('/api/v1/insights', insightsRoutes);
 app.use('/api/v1/users',    userRoutes);
+app.use('/api/v1/trends',   trendsRoutes);
 
 // ── Error Handling ────────────────────────────────────────────
 app.use(notFound);
@@ -82,4 +89,4 @@ app.listen(PORT, () => {
   logger.info(`✦ Modaic API listening on port ${PORT} [${process.env.NODE_ENV}]`);
 });
 
-module.exports = app; // for tests
+module.exports = app;
