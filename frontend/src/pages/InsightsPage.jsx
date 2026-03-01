@@ -3,17 +3,39 @@
  */
 
 import { useState, useEffect } from 'react';
-import { insightsAPI } from '../services/api';
+import { insightsAPI, trendsAPI } from '../services/api';
+import toast from 'react-hot-toast';
 
 export default function InsightsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [trend, setTrend] = useState(null);
+  const [trendLoading, setTrendLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     insightsAPI.getInsights()
       .then(res => setData(res.data.data))
       .finally(() => setLoading(false));
+
+    trendsAPI.getTrend()
+      .then(res => setTrend(res.data.data))
+      .catch(() => {})
+      .finally(() => setTrendLoading(false));
   }, []);
+
+  const refreshTrend = async () => {
+    setRefreshing(true);
+    try {
+      const res = await trendsAPI.refreshTrend();
+      setTrend(res.data.data);
+      toast.success("Trend alert refreshed! ✨");
+    } catch {
+      toast.error("Could not refresh trend");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: 80 }}>
@@ -99,6 +121,61 @@ export default function InsightsPage() {
           <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-600)', lineHeight: 1.8 }}>{aiInsights}</p>
         </div>
       )}
+
+      {/* Weekly Trend Alert */}
+      <div className="pixel-card" style={{ background: 'linear-gradient(135deg, #fef3c7, #fdf2f8)', borderColor: '#fbbf24', boxShadow: '4px 4px 0 #fbbf24' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div className="section-title" style={{ color: '#92400e', marginBottom: 0 }}>✦ LUNA'S WEEKLY TREND ALERT</div>
+          <button
+            onClick={refreshTrend}
+            disabled={refreshing}
+            style={{ fontFamily: 'var(--font-pixel)', fontSize: 6, padding: '5px 10px', background: '#fbbf24', border: '2px solid #d97706', color: 'white', cursor: 'pointer' }}
+          >
+            {refreshing ? '...' : '⟳ REFRESH'}
+          </button>
+        </div>
+
+        {trendLoading ? (
+          <div style={{ textAlign: 'center', padding: 20 }}>
+            <div className="pixel-spinner" style={{ margin: '0 auto 8px' }}/>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#92400e' }}>Luna is generating your trend alert...</div>
+          </div>
+        ) : trend ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <span style={{ fontSize: 28 }}>{trend.badge || '✨'}</span>
+              <div style={{ fontFamily: 'var(--font-pixel)', fontSize: 9, color: '#92400e' }}>{trend.title}</div>
+            </div>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#78350f', lineHeight: 1.7, marginBottom: 14 }}>{trend.summary}</p>
+            {trend.tips?.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: 'var(--font-pixel)', fontSize: 7, color: '#92400e', marginBottom: 8 }}>3 WAYS TO WEAR IT</div>
+                {trend.tips.map((tip, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
+                    <span style={{ fontFamily: 'var(--font-pixel)', fontSize: 7, color: '#fbbf24', flexShrink: 0, marginTop: 2 }}>{i + 1}.</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#78350f', lineHeight: 1.5 }}>{tip}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {trend.suggestion && (
+              <div style={{ background: 'rgba(251,191,36,0.2)', border: '2px solid #fbbf24', padding: 10 }}>
+                <span style={{ fontFamily: 'var(--font-pixel)', fontSize: 6, color: '#92400e' }}>💡 CONSIDER ADDING: </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#78350f' }}>{trend.suggestion}</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 10 }}>
+              Add more items to your wardrobe to unlock trend alerts! 👗
+            </div>
+            <button onClick={refreshTrend} className="btn-pixel" style={{ fontSize: 7 }}>
+              ✦ GENERATE TREND ALERT
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Style badges */}
       <div className="pixel-card">
