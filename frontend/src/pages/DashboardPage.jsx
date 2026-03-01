@@ -100,60 +100,109 @@ export default function DashboardPage() {
       vibeMessage = "Ready to slay today?";
   }
 
+
+  // 🌙 Night detection
+  const isNight = hour >= 22 || hour < 5;
+
+  // 🎀 Style-based personality
+  const style = user?.styleProfile?.primaryStyle;
+
+  const stylePersonalityMap = {
+    romantic: "Soft elegance looks beautiful on you 💕",
+    minimalist: "Clean lines. Quiet power. ✨",
+    bold: "Drama. Confidence. Main character energy 🔥",
+    vintage: "Timeless never goes out of style 🕰️",
+    streetwear: "Effortlessly cool as always 😎",
+    preppy: "Polished and poised today 🎀",
+    bohemian: "Free spirit fashion goddess 🌿",
+    casual: "Comfort but make it chic 💖",
+  };
+
+  const styleMessage =
+    stylePersonalityMap[style] || "Your style is uniquely you ✨";
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-in">
         {/* Greeting */}
         
-        <div
-    className="pixel-card"
-    style={{
-      background: "linear-gradient(135deg, var(--pink-100), var(--lavender))",
-      borderColor: "var(--pink-300)",
-    }}
-  >
+            
     <div
+      className="pixel-card greeting-animate"
       style={{
-        fontFamily: "var(--font-pixel)",
-        fontSize: 11,
-        color: "var(--pink-600)",
-        marginBottom: 8,
+        position: "relative",
+        overflow: "hidden",
+        background:
+          greeting === "NIGHT 🌙"
+            ? "linear-gradient(135deg, #1e1b4b, #312e81)"
+            : "linear-gradient(135deg, var(--pink-100), var(--lavender))",
+        borderColor:
+          greeting === "NIGHT 🌙"
+            ? "#6366f1"
+            : "var(--pink-300)",
       }}
     >
-      ✦ GOOD {greeting}, {user?.name?.split(" ")[0]?.toUpperCase() || "BABE"}! ✦
-    </div>
+      {/* Night sparkles */}
+      {isNight && (
+        <>
+          <div className="night-sparkle" style={{ top: "15%", right: "8%" }}>✨</div>
+          <div className="night-sparkle" style={{ top: "70%", right: "18%", animationDelay: "1.5s" }}>🌙</div>
+        </>
+      )}
 
-    <p
-      style={{
-        fontSize: 13,
-        fontWeight: 700,
-        color: "var(--gray-600)",
-        marginBottom: 6,
-      }}
-    >
-      Happy {dayName}! {vibeMessage}
-    </p>
-
-    <p
-      style={{
-        fontSize: 12,
-        fontWeight: 600,
-        color: "var(--gray-500)",
-        marginBottom: 16,
-      }}
-    >
-      Your AI stylist Luna is here to help you shine ✨
-    </p>
-
-    {!user?.styleProfile?.quizCompleted && (
-      <button
-        className="btn-pixel secondary"
-        onClick={() => navigate("/style-quiz")}
-        style={{ fontSize: 8 }}
+      <div
+        style={{
+          fontFamily: "var(--font-pixel)",
+          fontSize: 11,
+          color: greeting === "NIGHT 🌙" ? "#c7d2fe" : "var(--pink-600)",
+          marginBottom: 8,
+        }}
       >
-        💖 TAKE STYLE QUIZ
-      </button>
-    )}
-  </div>
+        ✦ GOOD {greeting}, {user?.name?.split(" ")[0]?.toUpperCase() || "BABE"}! ✦
+      </div>
+
+      <p
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: greeting === "NIGHT 🌙" ? "#e0e7ff" : "var(--gray-600)",
+          marginBottom: 6,
+        }}
+      >
+        Happy {dayName}! {vibeMessage}
+      </p>
+
+      <p
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: greeting === "NIGHT 🌙" ? "#c7d2fe" : "var(--gray-500)",
+          marginBottom: 8,
+        }}
+      >
+        {styleMessage}
+      </p>
+
+      <p
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: greeting === "NIGHT 🌙" ? "#a5b4fc" : "var(--gray-500)",
+          marginBottom: 16,
+        }}
+      >
+        Luna is here to elevate your look ✨
+      </p>
+
+      {!user?.styleProfile?.quizCompleted && (
+        <button
+          className="btn-pixel secondary"
+          onClick={() => navigate("/style-quiz")}
+          style={{ fontSize: 8 }}
+        >
+          💖 TAKE STYLE QUIZ
+        </button>
+      )}
+    </div>
       {/* Stats */}
       <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {statCards.map(card => (
