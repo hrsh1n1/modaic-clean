@@ -49,33 +49,111 @@ export default function DashboardPage() {
     { label: 'ECO SCORE', val: liveStats ? `${liveStats.sustainabilityScore}%` : '—', icon: '🌱', color: 'var(--yellow)', border: '#fbbf24' },
   ];
 
-  const hour = new Date().getHours();
+  const now = new Date();
 
-  const greeting =
-    hour >= 5 && hour < 12
-      ? 'MORNING'
-      : hour >= 12 && hour < 17
-      ? 'AFTERNOON'
-      : 'EVENING';
+  // (3) Timezone-safe (uses browser timezone automatically)
+  const hour = now.getHours();
+  const dayIndex = now.getDay();
+
+  const days = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+
+  const dayName = days[dayIndex];
+
+  // (1) Greeting Logic
+  let greeting;
+
+  if (hour >= 5 && hour < 12) {
+    greeting = "MORNING";
+  } else if (hour >= 12 && hour < 17) {
+    greeting = "AFTERNOON";
+  } else if (hour >= 17 && hour < 22) {
+    greeting = "EVENING";
+  } else {
+    greeting = "NIGHT 🌙";
+  }
+
+  // (2) Weekday Personalization
+  let vibeMessage;
+
+  switch (dayIndex) {
+    case 1: // Monday
+      vibeMessage = "Let’s start the week strong 💪";
+      break;
+    case 5: // Friday
+      vibeMessage = "Weekend glam loading... ✨";
+      break;
+    case 6: // Saturday
+      vibeMessage = "It’s your main character day 💖";
+      break;
+    case 0: // Sunday
+      vibeMessage = "Soft reset energy today 🌸";
+      break;
+    default:
+      vibeMessage = "Ready to slay today?";
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-in">
-      {/* Greeting */}
-      
-      <div className="pixel-card" style={{ background: 'linear-gradient(135deg, var(--pink-100), var(--lavender))', borderColor: 'var(--pink-300)' }}>
-        <div style={{ fontFamily: 'var(--font-pixel)', fontSize: 11, color: 'var(--pink-600)', marginBottom: 8 }}>
-          ✦ GOOD {greeting}, {user?.name?.split(' ')[0]?.toUpperCase() || 'BABE'}! ✦
-        </div>
-        <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-600)', marginBottom: 16 }}>
-          Ready to look amazing today? Your AI stylist Luna is here to help you shine 🌸
-        </p>
-        {!user?.styleProfile?.quizCompleted && (
-          <button className="btn-pixel secondary" onClick={() => navigate('/style-quiz')} style={{ fontSize: 8 }}>
-            💖 TAKE STYLE QUIZ
-          </button>
-        )}
-      </div>
+        {/* Greeting */}
+        
+        <div
+    className="pixel-card"
+    style={{
+      background: "linear-gradient(135deg, var(--pink-100), var(--lavender))",
+      borderColor: "var(--pink-300)",
+    }}
+  >
+    <div
+      style={{
+        fontFamily: "var(--font-pixel)",
+        fontSize: 11,
+        color: "var(--pink-600)",
+        marginBottom: 8,
+      }}
+    >
+      ✦ GOOD {greeting}, {user?.name?.split(" ")[0]?.toUpperCase() || "BABE"}! ✦
+    </div>
 
+    <p
+      style={{
+        fontSize: 13,
+        fontWeight: 700,
+        color: "var(--gray-600)",
+        marginBottom: 6,
+      }}
+    >
+      Happy {dayName}! {vibeMessage}
+    </p>
+
+    <p
+      style={{
+        fontSize: 12,
+        fontWeight: 600,
+        color: "var(--gray-500)",
+        marginBottom: 16,
+      }}
+    >
+      Your AI stylist Luna is here to help you shine ✨
+    </p>
+
+    {!user?.styleProfile?.quizCompleted && (
+      <button
+        className="btn-pixel secondary"
+        onClick={() => navigate("/style-quiz")}
+        style={{ fontSize: 8 }}
+      >
+        💖 TAKE STYLE QUIZ
+      </button>
+    )}
+  </div>
       {/* Stats */}
       <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         {statCards.map(card => (
