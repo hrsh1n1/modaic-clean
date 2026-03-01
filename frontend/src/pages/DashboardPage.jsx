@@ -49,12 +49,22 @@ export default function DashboardPage() {
     { label: 'ECO SCORE', val: liveStats ? `${liveStats.sustainabilityScore}%` : '—', icon: '🌱', color: 'var(--yellow)', border: '#fbbf24' },
   ];
 
+  const hour = new Date().getHours();
+
+  const greeting =
+    hour >= 5 && hour < 12
+      ? 'MORNING'
+      : hour >= 12 && hour < 17
+      ? 'AFTERNOON'
+      : 'EVENING';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-in">
       {/* Greeting */}
+      
       <div className="pixel-card" style={{ background: 'linear-gradient(135deg, var(--pink-100), var(--lavender))', borderColor: 'var(--pink-300)' }}>
         <div style={{ fontFamily: 'var(--font-pixel)', fontSize: 11, color: 'var(--pink-600)', marginBottom: 8 }}>
-          ✦ GOOD {new Date().getHours() < 12 ? 'MORNING' : new Date().getHours() < 17 ? 'AFTERNOON' : 'EVENING'}, {user?.name?.split(' ')[0]?.toUpperCase() || 'BABE'}! ✦
+          ✦ GOOD {greeting}, {user?.name?.split(' ')[0]?.toUpperCase() || 'BABE'}! ✦
         </div>
         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-600)', marginBottom: 16 }}>
           Ready to look amazing today? Your AI stylist Luna is here to help you shine 🌸
